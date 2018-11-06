@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "__pycache__"
+		},
+		{
+			"path": "docs"
+		},
+		{
+			"path": "img"
+		},
+		{
+			"path": "logs"
+		},
+		{
+			"path": "src"
+		},
+		{
+			"path": "tests"
+		}
+	]
+}
