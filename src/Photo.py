@@ -1,7 +1,9 @@
 import re
 
-class Board(object):
+class Photo(object):
     def __init__(self, photoFile):
+        self.photo = photoFile
+
         with open(photoFile) as inFile:
             self.filename = inFile.readline()
         groups = re.match(r'(.*)IMG-(?P<year>....)-(?P<month>.*)-(?P<day>.*) (?P<hours>.*)h(?P<minutes>.*)m(?P<seconds>.*)s_(?P<battery>.*)%.jpg', self.filename)

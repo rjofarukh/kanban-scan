@@ -2,14 +2,8 @@ import numpy as np
 import cv2
 import imutils
 from imutils import perspective
+import utils
 
-MAGENTA_MIN = (135,50,50)
-MAGENTA_MAX = (165,255,255)
-
-RED1_MIN = (0, 20, 50)
-RED1_MAX = (15, 255, 255)
-RED2_MIN = (165, 20, 50)
-RED2_MAX = (180, 255, 255)
 
 # Will get the roll of tape and plaster it 
 # all over a sheet of paper and use it to determine
@@ -27,20 +21,24 @@ RED2_MAX = (180, 255, 255)
 def find_and_transform_board(image):
 
     # placeholder color
-    contours = threshold(image, RED1_MIN, RED1_MAX, RED2_MIN, RED2_MAX)
-    
-    # dilate to connect pixels which might be apart for the border
-    dilated = dilate(image)
+    mask1 = utils.threshold(image, "RED1")
+    mask2 = utils.threshold(image, "RED2")
 
-    # once connected, make them thinner
-    eroded = erode(dilated)
-
+    contours = cv2.bitwise_or(mask1, mask2)
+    dilated = utils.dilate(contours)
+    eroded = utils.erode(dilated)
     points = find_points(eroded)
 
-    warped = transform_corners(image, points)
+    flood_mask = np.zeros((eroded.shape[0]+2, eroded.shape[1]+2), np.uint8)
+    cv2.floodFill(eroded, flood_mask, (0,0), 255)
 
-    # returns just the board insided the contour
-    return warped
+    warped_image = transform_corners(image, points)
+    warped_border = transform_corners(eroded, points)
+
+    flood_mask = np.zeros((warped_border.shape[0]+2, warped_border.shape[1]+2), np.uint8)
+    cv2.floodFill(warped_border, flood_mask, (0,0), 255)
+
+    return warped_image, warped_border
 
 def find_points(image):
     contours = cv2.findContours(image, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -56,38 +54,12 @@ def find_points(image):
         raise Exception("Could not find the board!")
 
     return None 
-    
-def threshold(image, min1, max1, min2 = None, max2 = None):
-    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    mask1 = cv2.inRange(hsv_image, min1, max1)
-
-    if min2 is None or max2 is None:
-        return mask1
-
-    mask2 = cv2.inRange(hsv_image, min1, max1)
-
-    result = cv2.bitwise_or(mask1, mask2)
-
-    return result
-
-def dilate(image, kern_size = 5, iter_num = 1):
-    kernel = np.ones((kern_size, kern_size), np.uint8)
-    dilated = cv2.dilate(image, kernel, iterations=iter_num)
-
-    return dilated
-
-def erode(image, kern_size = 5, iter_num = 1):
-    kernel = np.ones((kern_size, kern_size), np.uint8)
-    eroded = cv2.dilate(image, kernel, iterations=iter_num)
-
-    return eroded
 
 def distance_between_points(point1, point2):
     return np.sqrt(((point1[0] - point2[0]) ** 2) + ((point1[1] - point2[1]) ** 2))
 
 def transform_corners(image, pts):
     ordered_pts = perspective.order_points(pts)
-    print(ordered_pts)
     (top_left, top_right, bottom_right, bottom_left) = ordered_pts
 
     width1 = distance_between_points(top_left, top_right)
@@ -107,5 +79,3 @@ def transform_corners(image, pts):
     
     warped = cv2.warpPerspective(image, perspectiveTransform, (warped_width, warped_height))
     return warped
-
-
