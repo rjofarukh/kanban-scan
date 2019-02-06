@@ -13,12 +13,6 @@ from matplotlib import colors
 
 
 ###############################################
-THRESHOLDS_FILE = "../json/thresholds.json"
-PREV_PHOTO = ""
-CURR_PHOTO = ""
-BOARD_POINTS = ""
-TICKETS = []
-SECTIONS = []
 THRESHOLDS = ""
 ###############################################
 
@@ -27,7 +21,16 @@ def show_images(*images, scale=4, name="DEFAULT"):
         height, width = image.shape[:2]
         cv2.namedWindow(name, cv2.WINDOW_NORMAL)
 
-        image = cv2.resize(image, None, fx=1/scale, fy=1/scale) 
+        scale1 = 2560 / width
+        scale2 = 1500 / height
+
+        if scale > 0:
+            image = cv2.resize(image, None, fx=1/scale, fy=1/scale) 
+        elif scale1 <= scale2:
+            image = cv2.resize(image, None, fx=1/scale1, fy=1/scale1) 
+        else:
+            image = cv2.resize(image, None, fx=1/scale2, fy=1/scale2)
+    
         cv2.imshow(name, image)
 
         cv2.waitKey(0)
@@ -51,9 +54,15 @@ def threshold(image, color):
 
     return mask
 
-def threshold_adaptive(image, block_size):
+def threshold_adaptive(image, block_size=5):
     return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
             cv2.THRESH_BINARY, block_size, 0)
+
+def setup_thresholds(file_name):
+    global THRESHOLDS
+    if not THRESHOLDS:
+        with open(file_name) as infile:
+            THRESHOLDS = json.load(infile)
 
 def get_thresh_tuples(color):
     global THRESHOLDS
