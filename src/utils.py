@@ -29,13 +29,21 @@ def show_images(*images, scale=4, name="DEFAULT"):
         elif scale1 <= scale2:
             image = cv2.resize(image, None, fx=1/scale1, fy=1/scale1) 
         else:
-            image = cv2.resize(image, None, fx=1/scale2, fy=1/scale2)
+            image = cv2.resize(image, (2560, 1500))
     
         cv2.imshow(name, image)
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    
+
+def image_grid(tl,tr,bl,br):
+    horizontal_1 = np.hstack((tl, tr))
+    horizontal_2 = np.hstack((bl, br))
+
+    vertical = np.vstack((horizontal_1, horizontal_2))
+
+    return vertical
+
 def dilate(image, kern_size = 5, iter_num = 1):
     kernel = np.ones((kern_size, kern_size), np.uint8)
     dilated = cv2.dilate(image, kernel, iterations=iter_num)

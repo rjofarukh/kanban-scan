@@ -15,7 +15,7 @@ class Stage(Enum):
 @unique
 class Function(Enum):
     TICKET = auto()
-    NUMBER = auto()
+    LIMIT = auto()
     FINAL = auto()
     NONE = auto()
 
@@ -24,3 +24,9 @@ class Priority(Enum):
     LOW = auto()
     MEDUIM = auto()
     HIGH = auto()
+
+class Msg_Level(Enum):
+    TICKET_NUMBER_INVALID = 3
+    TICKET_REGEX = 2
+    ASSIGNEE_MULTIPLE = 1
+    INFO = 0

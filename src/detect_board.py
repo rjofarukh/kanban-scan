@@ -36,9 +36,6 @@ def find_and_transform_board(image, sections, board_settings):
     eroded = utils.erode(dilated)
     points = find_points(eroded)
 
-    if points is None:
-        return None, None, None
-
     flood_mask = np.zeros((eroded.shape[0]+2, eroded.shape[1]+2), np.uint8)
     cv2.floodFill(eroded, flood_mask, (0,0), 255)
 
@@ -63,7 +60,7 @@ def find_points(image):
     if len(points) == 4:
         return points.reshape(4, 2)
     else:
-        logging.warning("The board is obstructed!")
+        logging.warning("The board is obstructed in the current photo!")
 
     return None 
 
@@ -84,8 +81,9 @@ def find_sections(image, border, sections, board_settings):
             section_num = i + 1
             cimg = np.zeros_like(white_sections)
             cv2.drawContours(cimg, contours, i, color=255, thickness=-1)
+            rect = cv2.boundingRect(contours[i])
 
-            sections[str(section_num)] = Section(cimg, section_num, function=Function.TICKET)
+            sections[str(section_num)] = Section(cimg, str(section_num), rect)
         else:
             break
     

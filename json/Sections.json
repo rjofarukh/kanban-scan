@@ -1,0 +1,23 @@
+{
+    "1" : {
+        "map_string" : {
+            "1" : "backlog", 
+            "2" : "final",
+            "3" : "backend_doing",
+            "4" : "frontend_doing",
+            "5" : "backend_testing",
+            "6" : "frontend_testing",
+            "7" : "doing_limit",
+            "8" : "none",
+            "9" : "testing_limit",
+            "10" : "none"
+        },
+
+        "regex" : "(backlog-)|(^backlog-backend_doing-)(backend_doing-|backend_testing-)*(backend_testing-|backend_testing-final-)?|(^backlog-frontend_doing-)(frontend_doing-|frontend_testing-)*(frontend_testing-|frontend_testing-final-)?",
+
+        "doing_limit" : 3,
+        "testing_limit" : 4,
+        "backlog_limit" : 3
+
+    }
+}

@@ -1,4 +1,7 @@
 src/*.jpg
+src/.vscode
+logs/*
+pkl/*
 *.jpg
 __pycache__/
 .DS_Store

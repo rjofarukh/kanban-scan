@@ -3,7 +3,9 @@ import cv2
 import imutils
 import random
 import utils
-from Ticket import Ticket
+import difflib
+from Ticket import Ticket, Assignee
+from imutils import perspective
 
 import pyzbar.pyzbar as pyzbar
 import logging
@@ -14,139 +16,187 @@ from skimage import feature
 from keras.models import load_model
 
 
-# takes in transformed image from find_and_transform_board (going to be in RGB)
-# returns changed objects, which will have only the coordinates for now
-# if the objects are too small - not a ticket
-# else  they are actual changes - meaning it's a ticket or an empty space
-#   
-def find_tickets(prev_image, curr_image, sections, ticket_settings):
 
-    prev_image = normalize(prev_image)
-    curr_image = normalize(curr_image)
+def difference_mask(image1, image2, ticket_settings):
+    h1,s1,v1 = cv2.split(normalize(image1.copy()))
+    h2,s2,v2 = cv2.split(normalize(image2.copy()))
 
-    h1,s1,v1 = cv2.split(prev_image)
-    h2,s2,v2 = cv2.split(curr_image)
+    hsv_diff = cv2.absdiff(s1,s2)
+    _, dst = cv2.threshold(hsv_diff, int(ticket_settings["difference_threshold"]), 255, cv2.THRESH_BINARY)
+    
+    return dst
 
-    diff = cv2.absdiff(h1,h2)
-    diff2 = cv2.absdiff(v1,v2)
+def find_tickets(state, classifier, ticket_settings, ticket_data):
+    prev_image = state.prev_image
+    curr_image = state.curr_image
+    background_image = state.background_image
 
-    th, dst = cv2.threshold(diff, int(ticket_settings["difference_threshold"]), 255, cv2.THRESH_BINARY)
+    curr_prev_diff = difference_mask(curr_image, prev_image, ticket_settings)
+    curr_back_diff = difference_mask(curr_image, background_image, ticket_settings)
+    prev_back_diff = difference_mask(prev_image, background_image, ticket_settings)
 
-    #utils.show_images(diff, diff2, h1, h2, dst, scale=1)
+    added_ticket_mask = cv2.bitwise_and(curr_prev_diff, curr_back_diff)
+    removed_ticket_mask = cv2.bitwise_and(curr_prev_diff, prev_back_diff)
 
-    im, contours, hierarchy = cv2.findContours(dst.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    colored_grid = utils.image_grid(curr_image, prev_image, background_image, np.zeros_like(prev_image))
+    threshold_grid = utils.image_grid(curr_back_diff, prev_back_diff, added_ticket_mask, removed_ticket_mask)
+    state.set_grids(colored_grid, threshold_grid)
+
+    added_tickets = changed_tickets(curr_image, added_ticket_mask, classifier, ticket_settings, ticket_data)
+
+    removed_tickets = changed_tickets(prev_image, removed_ticket_mask, classifier, ticket_settings, ticket_data)
+
+    return added_tickets, removed_tickets
+
+def changed_tickets(bgr_image, ticket_mask, classifier, ticket_settings, ticket_data):
+    hsv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2HSV)
+
+    _, contours, _ = cv2.findContours(ticket_mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     contours = sorted(contours, key = cv2.contourArea, reverse = True)
 
-    bgr_curr_image = cv2.cvtColor(curr_image, cv2.COLOR_HSV2BGR)
+    tickets = {}
 
     for i in range(len(contours)):
-        if cv2.contourArea(contours[i]) * int(ticket_settings["min_ticket_scale"]) > prev_image.shape[0] * prev_image.shape[1]:
-            ticket_num = i + 1
-            ticket_mask = np.zeros_like(dst)
-            cv2.drawContours(ticket_mask, contours, i, color=255, thickness=-1)
+        if cv2.contourArea(contours[i]) * int(ticket_settings["min_ticket_scale"]) > hsv_image.shape[0] * hsv_image.shape[1]:
+
+            ticket_mask = np.zeros_like(ticket_mask)
+
+            hulls = []
+            hulls.append(cv2.convexHull(contours[i], False))
+
+            cv2.drawContours(ticket_mask, hulls, 0, color=255, thickness=-1)
 
             area = cv2.contourArea(contours[i])
-            *_,width, height = cv2.boundingRect(contours[i])
 
-            logging.debug("AREA %f" % cv2.contourArea(contours[i]))
-            logging.debug(f"HEIGHT {height}")
-            logging.debug(f"WIDTH {width}")
-            logging.debug("----------")
+            rect = cv2.boundingRect(contours[i])
+            x,y,width, height = rect
 
+            ticket_area = bgr_image[y:y+height, x:x+width]
 
-            output = cv2.bitwise_and(bgr_curr_image, bgr_curr_image, mask=ticket_mask)
-            utils.show_images(output, scale=1)
+            thresholded_ticket, colored_ticket = cluster(ticket_area)
+            thresholded_digits, colored_digits = digit_area(thresholded_ticket, colored_ticket, ticket_settings)
 
-            find_numbers_in_mask(diff2.copy(), bgr_curr_image.copy())
-            
-            ticket = Ticket(ticket_mask, ticket_num, [area, width, height])
-            parent_section = ticket.ticket_belongs_to(sections)
-            sections[parent_section].add_ticket(ticket)
+            ticket_number = find_numbers_in_mask(thresholded_digits, colored_digits, classifier, ticket_settings["Digits"])
+
+            if len(difflib.get_close_matches(ticket_number, ticket_data.keys())) > 0:
+                ticket_number = difflib.get_close_matches(ticket_number, ticket_data.keys())[0]
+                tickets[ticket_number] = Ticket(ticket_mask, ticket_number, [area, width, height, rect],desc=ticket_data[ticket_number]["description"])
+            else: 
+                tickets[ticket_number] = Ticket(ticket_mask, ticket_number, [area, width, height, rect])
 
         else:
             break
 
-    return sections
+    return tickets
 
+def digit_area(thresholded_ticket, colored_ticket, ticket_settings):
+    height, width = thresholded_ticket.shape[:2]
+    im1 = thresholded_ticket[0:0+int(height * float(ticket_settings["top_digit_area"])),0:0+width]
+    im2 = colored_ticket[0:0+int(height * float(ticket_settings["top_digit_area"])),0:0+width]
+
+    return im1, im2
+
+def cluster(image):
+
+    Z = image.reshape((-1,3))
+    Z = np.float32(Z)
+
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+    K = 3
+    ret,label,center=cv2.kmeans(Z,K,None,criteria,10,cv2.KMEANS_RANDOM_CENTERS)
+
+    center = np.uint8(center)
+    res = center[label.flatten()]
+    res2 = res.reshape((image.shape))
+
+    center = center[np.argmin(np.sum(center, axis=1))]
+
+    mask = cv2.inRange(res2, np.subtract(center,1), np.add(center, 1))
+ 
+    return mask, res2
 
 def normalize(image):
+
+    #return image
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
     blurred = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
     return blurred
 
-def deskew(image):
+def deskew(image, SZ=20):
     m = cv2.moments(image)
     if abs(m['mu02']) < 1e-2:
         return image.copy()
     skew = m['mu11']/m['mu02']
     M = np.float32([[1, skew, -0.5*SZ*skew], [0, 1, 0]])
-    image = cv2.warpAffine(image, M, (SZ, SZ), flags=affine_flags)
+    image = cv2.warpAffine(image, M, (SZ, SZ))
     return image
 
-def find_tag_in_mask(image):
+def find_assignees_in_image(state):
+    assignees = []
+
+    image = state.curr_image
     decodedObjects = pyzbar.decode(image)
  
-    # Print results
-    for obj in decodedObjects:
-        print('Type : ', obj.type)
-        print('Data : ', obj.data,'\n')
-
-      # Loop over all decoded objects
-    for decodedObject in decodedObjects: 
+    for decodedObject in decodedObjects:
+        blank = np.zeros_like(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)) 
+        
         points = decodedObject.polygon
  
-        # If the points do not form a quad, find convex hull
         if len(points) > 4 : 
             hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
             hull = list(map(tuple, np.squeeze(hull)))
         else : 
             hull = points;
         
-        # Number of points in the convex hull
-        n = len(hull)
-    
-        # Draw the convext hull
-        for j in range(0,n):
-            cv2.line(image, hull[j], hull[ (j+1) % n], (255,0,0), 3)
+        (top_left, top_right, bottom_right, bottom_left) = perspective.order_points(np.asarray(points)[:4])
+
+        
+        logging.debug(f"{top_left}, {top_right}, {bottom_right}")
+        cv2.rectangle(blank, (top_left[0], top_left[1]), (bottom_right[0], bottom_right[1]), (255,255,255), -1)
+
+        _, assignee_mask = cv2.threshold(blank, 200, 255, cv2.THRESH_BINARY)
+        assignees.append(Assignee(str(decodedObject.data, 'utf-8', 'ignore'), assignee_mask, [top_left, bottom_right]))
+
+    return assignees
  
-    utils.show_images(image, scale=2)
+def find_numbers_in_mask(image, colored, classifier, digit_settings):
 
-def find_numbers_in_mask(im, curr_image):
-    cnn = load_model("../classifiers/mnist_keras_cnn_model.h5")
-
-    #im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-    #im_gray = cv2.GaussianBlur(im_gray, (5, 5), 0)
-
-    im_th = cv2.Canny(im,100,200)
-    im = curr_image
-    #im_th = cv2.adaptiveThreshold(im_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 5, 10)
-    #im_th = cv2.bitwise_not(im_th)
-
-    # !! IDEA - overly dialate just to get the areas of interest, then use proper edge detection
-    # on those regions along with deskewing!!!
-
-    ctrs = cv2.findContours(im_th.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    ctrs = cv2.findContours(image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     ctrs = ctrs[0] if imutils.is_cv2() else ctrs[1]
-    rects = [cv2.boundingRect(ctr) for ctr in ctrs]
 
-    for rect in rects:
-        x,y,w,h = rect
+    numbers = {}
+    for ctr in ctrs:
+        area = cv2.contourArea(ctr)
+        x,y,w,h = cv2.boundingRect(ctr)
         
-        if w > 5 and h > 5:
+        if area > int(digit_settings["min_area"]) and h > int(digit_settings["min_height"]):
+            digit_mask = np.zeros_like(image)
+            digit_mask[y:y+h, x:x+w] = image[y:y+h, x:x+w]
+
             bounding_square_len = int(h * 1.6)
             pt1 = int(y + h // 2 - bounding_square_len // 2)
             pt2 = int(x + w // 2 - bounding_square_len // 2)
 
-            roi = im_th[pt1:pt1+bounding_square_len, pt2:pt2+bounding_square_len]
+            roi = digit_mask[pt1:pt1+bounding_square_len, pt2:pt2+bounding_square_len]
+
+            if np.size(roi) == 0:
+                continue
             roi = cv2.resize(roi, (28,28))
+
             roi_arr = np.array(roi, 'float32') / 255
             roi_arr = roi_arr.reshape(1,28,28,1)
 
-            nbr = cnn.predict(roi_arr).argmax(axis=1)
+            nbr = classifier.predict(roi_arr).argmax(axis=1)
+            numbers[x + w // 2] =  nbr[0]
 
-            cv2.rectangle(im, (x, y), (x + w, y + h), (0, 255, 0), 3)
-            cv2.putText(im, str(int(nbr[0])), (rect[0], rect[1]),cv2.FONT_HERSHEY_DUPLEX, 2, (0, 255, 255), 3)
+            cv2.rectangle(colored, (x, y), (x + w, y + h), (0, 255, 0), 3)
+            cv2.putText(colored, str(int(nbr[0])), (x, y),cv2.FONT_HERSHEY_DUPLEX, 2, (0, 255, 255), 3)
 
-    utils.show_images(im, scale = 2)
+    result = ""
+
+    for key in sorted(numbers):
+        result += str(numbers[key])
+        
+    return result
