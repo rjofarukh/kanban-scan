@@ -5,3 +5,4 @@ pkl/*
 *.jpg
 __pycache__/
 .DS_Store
+src/board.txt
