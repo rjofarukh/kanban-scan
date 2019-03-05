@@ -1,16 +1,11 @@
 {
     "1" : {
         "General" : {
-            "scale" : "1",
-            "image_interval" : "10",
-            "thresholds_file" : "../json/thresholds.json",
-            "photo_folder" : "../data/demo3/"
+            "thresholds_file" : "../json/thresholds.json"
         },
 
         "Board" : {
-            "oriantation" : "horizontal",
             "min_section_scale" : "400",
-            "tags_per_ticket" : "2",
             "dilation" : "7",
             "erosion" : "1",
             "border_color" : "RED",
@@ -18,26 +13,14 @@
         },
 
         "Tickets" : {
-            "orientation" : "horizontal",
-            "min_ticket_scale" : "400",
+            "min_ticket_scale" : "100",
             "top_digit_area" : "0.4",
-            "digits_per_ticket" : "4",
-            "tags_per_ticket" : "1",
             "difference_threshold" : "15",
-            "dimensions_x" : "4",
-            "dimensions_y" : "3",
             
             "Digits" : {
                 "min_area" : "30",
                 "min_height" : "5",
                 "recognition_alg" : "cnn"
-            },
-
-            "Tags" : {
-                "color" : "WHITE",
-                "dimensions_x" : "1",
-                "dimensions_y" : "1",
-                "default_name" : "none"
             }
         }
     },
@@ -45,15 +28,11 @@
     "2" : {
         "General" : {
             "scale" : "1",
-            "image_interval" : "10",
-            "thresholds_file" : "../json/thresholds.json",
-            "photo_folder" : "../data/demo3/"
+            "thresholds_file" : "../json/thresholds.json"
         },
 
         "Board" : {
-            "oriantation" : "horizontal",
             "min_section_scale" : "400",
-            "tags_per_ticket" : "2",
             "dilation" : "7",
             "erosion" : "1",
             "border_color" : "RED",
@@ -61,11 +40,8 @@
         },
 
         "Tickets" : {
-            "orientation" : "horizontal",
             "min_ticket_scale" : "400",
             "top_digit_area" : "0.4",
-            "digits_per_ticket" : "4",
-            "tags_per_ticket" : "1",
             "difference_threshold" : "15",
             "dimensions_x" : "4",
             "dimensions_y" : "3",

@@ -6,6 +6,7 @@ import utils
 import difflib
 from Ticket import Ticket, Assignee
 from imutils import perspective
+from Enums import Function
 
 import pyzbar.pyzbar as pyzbar
 import logging
@@ -25,6 +26,14 @@ def difference_mask(image1, image2, ticket_settings):
     _, dst = cv2.threshold(hsv_diff, int(ticket_settings["difference_threshold"]), 255, cv2.THRESH_BINARY)
     
     return dst
+
+def find_limits(state, sections, section_data):
+    curr_image = state.curr_image.copy()
+    background_image = state.background_image.copy()
+    for section_num, section in sections.items():
+        if section.function == Function.LIMIT:
+            return
+    return 
 
 def find_tickets(state, classifier, ticket_settings, ticket_data):
     prev_image = state.prev_image
@@ -57,7 +66,8 @@ def changed_tickets(bgr_image, ticket_mask, classifier, ticket_settings, ticket_
     tickets = {}
 
     for i in range(len(contours)):
-        if cv2.contourArea(contours[i]) * int(ticket_settings["min_ticket_scale"]) > hsv_image.shape[0] * hsv_image.shape[1]:
+        _,_,width,height = cv2.boundingRect(contours[i])
+        if (cv2.contourArea(contours[i]) * int(ticket_settings["min_ticket_scale"]) > hsv_image.shape[0] * hsv_image.shape[1]) and width < hsv_image.shape[1] / 3 and height < hsv_image.shape[0] / 3:
 
             ticket_mask = np.zeros_like(ticket_mask)
 
@@ -151,8 +161,6 @@ def find_assignees_in_image(state):
         
         (top_left, top_right, bottom_right, bottom_left) = perspective.order_points(np.asarray(points)[:4])
 
-        
-        logging.debug(f"{top_left}, {top_right}, {bottom_right}")
         cv2.rectangle(blank, (top_left[0], top_left[1]), (bottom_right[0], bottom_right[1]), (255,255,255), -1)
 
         _, assignee_mask = cv2.threshold(blank, 200, 255, cv2.THRESH_BINARY)

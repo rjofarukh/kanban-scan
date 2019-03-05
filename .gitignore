@@ -2,6 +2,7 @@ src/*.jpg
 src/.vscode
 logs/*
 pkl/*
+live_view/*
 *.jpg
 __pycache__/
 .DS_Store

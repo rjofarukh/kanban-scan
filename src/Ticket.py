@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import logging
-from Enums import Priority
+from Enums import Priority, Msg_Level
 
 
 class Ticket(object):
@@ -34,21 +34,20 @@ class Ticket(object):
     def print_msgs(self):
         for msg in self.msg_str:
             if msg.startswith("INFO: "):
-                logging.info(msg.strip("INFO: "))
+                logging.info(msg[len("INFO: "):])
             elif msg.startswith("ERROR: "):
-                logging.error(msg.strip("ERROR: "))
+                logging.error(msg[len("ERROR: "):])
             elif msg.startswith("WARNING: "):
-                logging.warning(msg.strip("WARNING: "))
+                logging.warning(msg[len("WARNING: "):])
 
-        for msg in self.msg_str:
-            if msg.startswith("INFO: "):
-                self.msg_str.remove(msg)
+
+        self.msg_str = []
                 
 
     def set_assignee(self, scanned_assignees):
         for assignee in self.assignee_names:
             if assignee not in scanned_assignees:
-                self.assignees.remove(assignee)
+                self.assignee_names.remove(assignee)
                 self.add_msg(f"INFO: ASSIGNEE - Ticket #{self.num} is NO LONGER assigned to \"{assignee}")
 
         for scanned_assignee in scanned_assignees:
@@ -59,6 +58,8 @@ class Ticket(object):
         
         if len(self.assignee_names) > 1:
             self.add_error(Msg_Level.ASSIGNEE_MULTIPLE, f"WARNING: ASSIGNEE - Ticket #{self.num} has multiple assignees: {self.assignee_names}!")
+        elif Msg_Level.ASSIGNEE_MULTIPLE in self.errors:
+            self.errors.remove(Msg_Level.ASSIGNEE_MULTIPLE)
 
 
     def vertical(self):
@@ -93,14 +94,13 @@ class Ticket(object):
 
 
     def __str__(self):
-        
+        error_names = [err.name for err in self.errors]
         return f"""
 Ticket Number {self.num}
   Description : {self.desc}
   Assignees : {self.assignee_names}
-  Section History : {self.section_history}
-  Horizontal : {self.horizontal()}
-"""
+  Errors : {error_names}
+  Horizontal : {self.horizontal()}"""
 
     
 class Assignee(object):

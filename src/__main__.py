@@ -12,7 +12,7 @@ import datetime
 import pickle
 
 from enum import Enum
-from Enums import Stage, Mode
+from Enums import Stage, Mode, Function
 from Board import Board
 from Section import Section
 
@@ -22,6 +22,7 @@ from keras.models import load_model
 def load_parsers():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--folder", help="Folder containing the photos for scanning (mandatory)", action="store")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--demo", help="Demo number - important for settings.json (logger.INFO)", action='store')
     mode.add_argument("--test", nargs=1, help="Run specific test file (logger.DEBUG)", action="store")
@@ -102,7 +103,7 @@ def load_tic_sec_info(settingsID):
     return data
 
     
-def demo(logging_level, demo_id, load_pkls=False):
+def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
     load_logging(logging_level)
     object_file_names = ["stage", "settings", "classifier", "sections", "state", "data"]
 
@@ -118,7 +119,7 @@ def demo(logging_level, demo_id, load_pkls=False):
     else:
         Settings = load_settings("../json/settings.json", demo_id)
         Classifier = load_classifiers(Settings["Tickets"]["Digits"]["recognition_alg"])
-        State = Board(Settings["General"]["photo_folder"])
+        State = Board(photo_folder)
         Data = load_tic_sec_info(demo_id)
     
     load_thresholds(Settings)
@@ -127,13 +128,13 @@ def demo(logging_level, demo_id, load_pkls=False):
     while photo is not None:
         if Curr_Stage == Stage.INIT and detect_board.find_board(photo, Settings["Board"]):
             background_image, Sections, points = detect_board.find_and_transform_board(photo, Sections, Settings["Board"])
-            Sections = Section.map_section_names(Sections, Data["Sections"])
 
             State.set_background_image(background_image)
             State.set_points(points)
-            State.draw_section_rectangles(Sections)
 
-            save_pickle_files(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data)
+            State.unmapped_sections = State.draw_section_rectangles(Sections)
+            Sections = Section.map_section_names(Sections, Data["Sections"])
+            State.board_sections = State.draw_section_rectangles(Sections)
 
             Curr_Stage = Stage.MAIN
 
@@ -144,55 +145,84 @@ def demo(logging_level, demo_id, load_pkls=False):
             assignees = detect_tickets.find_assignees_in_image(State)
             
             State.map_tickets_to_sections(added_tickets, removed_tickets, assignees, Sections, Data["Tickets"], Data["Sections"])
-            interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data)
+
+            save_view(Sections, State)
+            interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data, demo_id)
+            
 
         photo = State.next_photo()
     
     sys.exit()
         
-def interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data):
-    print("")
-    print("  View:")
-    print("    [t]ickets")
-    print("    [s]ections")
-    print("    [co]lored grid")
-    print("    [th]reshold grid")
-    print("    [cu]rrent image")
-    print("    [pr]evious image")
-    print("    [bo]rder")
-    print("  [r]eload ticket data")
-    print("  [q]uit and save pickles")
-    print("  (ENTER) continue")
+def save_view(sections, State):
+    from terminaltables import AsciiTable
+
+    cv2.imwrite("../live_view/changes_grid.jpg", State.colored_grid)
+    cv2.imwrite("../live_view/thresholds_grid.jpg", State.threshold_grid)
+    cv2.imwrite("../live_view/mapped_sections.jpg", State.board_sections)
+    cv2.imwrite("../live_view/unmapped_sections.jpg", State.unmapped_sections)
+
+
+    table_data = [["ID", "Function", "Name", "Limit", "Tickets"]]
+    for section_num, section in sections.items():
+        if section.function != Function.NONE:
+            curr = []
+            curr.append(section_num)
+            curr.append(section.function.name)
+
+            curr.append(section.name)
+            
+            if section.function == Function.TICKET or section.function == Function.FINAL:
+                curr.append(section.limit)
+            else:
+                curr.append("-")
+            
+            ticket_str = ""
+            for ticket_num, ticket in section.tickets.items():
+                ticket_str += f"{ticket_num} : {ticket.desc[:30]} ({ticket.assignee_names})\n"
+            curr.append(ticket_str)
+
+            table_data.append(curr)
+    
+    table = AsciiTable(table_data)
+    table.inner_row_border = True
+
+    with open("../live_view/board.txt", "w+") as b:
+        b.write(table.table)
+        b.write(f"\n\nDemo folder: {State.dir_name}\n")
+        b.write("Saved files:\n")
+        b.write("  ../live_view/changes_grid.jpg\n")
+        b.write("  ../live_view/thresholds_grid.jpg\n")
+        b.write("  ../live_view/mapped_sections.jpg\n")
+        b.write("  ../live_view/unmapped_sections.jpg\n")
+        
+
+def interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data, demo_id):
+    # print("")
+    # print("  View:")
+    # print("    [t]ickets")
+    # print("    [s]ections")
+    # print("  [q]uit and save pickles")
+    # print("  (ENTER) continue")
 
     while True:
-        cmd = input("=> ")
+        cmd = input("\n[t][s][q][enter]=> ")
 
         if cmd == "t":
             tickets = Section.tickets_keys_on_board(Sections)
             print(f"Tickets: {tickets}")
-            cmd = input("Choose a ticket: ")
-            while cmd not in tickets:
-                cmd = input("Not a valid number. Choose again: ")
-            print(Section.get_ticket(cmd, Sections))
+            if len(tickets) > 0:
+                cmd = input("Choose a ticket=> ")
+                while cmd not in tickets:
+                    cmd = input("Not a valid number. Choose again=> ")
+                print(Section.get_ticket(cmd, Sections))
         elif cmd == "s":
             print(f"Sections: {Sections.keys()}")
-            cmd = input("Choose a section: ")
-            while cmd not in Sections.keys():
-                cmd = input("Not a valid number. Choose again: ")
-            print(Sections[cmd])
-        elif cmd == "co":
-            color = utils.image_grid(State.curr_image, State.prev_image, State.board_sections, State.board_extracted)
-            utils.show_images(color, name="Colored Grid", scale=5)
-        elif cmd == "th":
-            utils.show_images(State.threshold_grid, name="Threshold Grid", scale=5)
-        elif cmd == "cu":
-            utils.show_images(State.curr_image, name="Current Image", scale=3)
-        elif cmd == "pr":
-            utils.show_images(State.prev_image, name="Previous Image", scale=3)
-        elif cmd == "bo":
-            utils.show_images(State.board_sections, name="Border Image", scale=3)
-        elif cmd == "r":
-            return
+            if len(Sessions.keys()) > 0:
+                cmd = input("Choose a section=> ")
+                while cmd not in Sections.keys():
+                    cmd = input("Not a valid number. Choose again=> ")
+                print(Sections[cmd])
         elif cmd == "q":
             save_pickle_files(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data)
             logging.warning("Exiting program!")
@@ -211,11 +241,11 @@ def main():
     args = load_parsers()
 
     if args.test is not None:
-        demo(logging.DEBUG, args.test[0])
+        demo(logging.DEBUG, photo_folder=args.folder, demo_id=args.test[0])
     elif args.demo is not None:
-        demo(logging.INFO, args.demo[0])
+        demo(logging.INFO, photo_folder=args.folder, demo_id=args.demo[0])
     elif args.reload:
-        demo(logging.INFO, "", load_pkls=True)
+        demo(logging.INFO, load_pkls=True)
 
 
 if __name__ == "__main__": main()

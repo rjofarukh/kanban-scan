@@ -4,6 +4,6 @@ while :;
   do 
   clear
   date
-  cat board.txt
+  cat ../live_view/board.txt
   sleep 1
 done

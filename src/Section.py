@@ -68,8 +68,7 @@ Section Number {self.num}
   Name : {self.name}
   Function : {self.function.name}
   Limit : {self.limit}
-  Tickets : {self.tickets.keys()}
-"""
+  Tickets : {self.tickets.keys()}"""
 
     def map_section_names(sections, section_data):
         map_str = section_data["map_string"]
@@ -91,7 +90,11 @@ Section Number {self.num}
                 limit_str = section_data[sec_name]
 
                 sections[section_num].set_function(Function.LIMIT)
-                sections[section_num].set_name(limit_str)
+                # sections[section_num].set_name(limit_str)
+
+                sections[section_num].set_name(sec_name)
+                sections[section_num].set_limit(limit_str)
+
             elif len(limits_for_section) > 0:
                 possible_limits = [int(section_data[x]) for x in limits_for_section]
                 limit = max(possible_limits)

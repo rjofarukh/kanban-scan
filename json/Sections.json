@@ -10,13 +10,14 @@
             "7" : "doing_limit",
             "8" : "none",
             "9" : "testing_limit",
-            "10" : "none"
+            "10" : "none",
+            "11" : "none"
         },
 
         "regex" : "(backlog-)|(^backlog-backend_doing-)(backend_doing-|backend_testing-)*(backend_testing-|backend_testing-final-)?|(^backlog-frontend_doing-)(frontend_doing-|frontend_testing-)*(frontend_testing-|frontend_testing-final-)?",
 
-        "doing_limit" : 3,
-        "testing_limit" : 4,
+        "doing_limit" : 1,
+        "testing_limit" : 2,
         "backlog_limit" : 3
 
     }
