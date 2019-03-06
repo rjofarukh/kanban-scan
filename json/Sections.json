@@ -8,7 +8,7 @@
             "5" : "backend_testing",
             "6" : "frontend_testing",
             "7" : "doing_limit",
-            "8" : "none",
+            "8" : "backlog_limit",
             "9" : "testing_limit",
             "10" : "none",
             "11" : "none"

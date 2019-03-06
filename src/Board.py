@@ -58,21 +58,20 @@ class Board(object):
         self.threshold_grid = threshold
 
     def draw_section_rectangles(self, sections):
-        image = self.curr_image.copy()
+        image = self.background_image.copy()
 
+        COLOR = (30, 75, 60)
         for section_num, section in sections.items():
             x,y,w,h = section.bounding_rect
-            cv2.rectangle(image, (x, y), (x + w, y + h), (255, 128, 0), 4)
+            cv2.rectangle(image, (x, y), (x + w, y + h), COLOR, 4)
 
             if section.function == Function.LIMIT:
-                cv2.putText(image, f"{section.limit}", (x, y+70),cv2.FONT_HERSHEY_DUPLEX, 3, (255, 128, 0), 1)
+                cv2.putText(image, f"{section.limit}", (x, y+70),cv2.FONT_HERSHEY_DUPLEX, 3, (0, 150, 90), 2)
             elif section.function != Function.NONE:
-                cv2.putText(image, f"ID:{section.num}", (x, y+25),cv2.FONT_HERSHEY_DUPLEX, 1, (255, 128, 0), 1)
-                cv2.putText(image, f"Name:{section.name}", (x, y+55),cv2.FONT_HERSHEY_DUPLEX, 1, (255, 128, 0), 1)
-                cv2.putText(image, f"Func:{section.function.name}", (x, y+85),cv2.FONT_HERSHEY_DUPLEX, 1, (255, 128, 0), 1)
-                cv2.putText(image, f"Limit:{section.limit}", (x, y+115),cv2.FONT_HERSHEY_DUPLEX, 1, (255, 128, 0), 1)
-
-        #self.board_sections = image
+                cv2.putText(image, f"ID:{section.num}", (x, y+25),cv2.FONT_HERSHEY_DUPLEX, 1, COLOR, 1)
+                cv2.putText(image, f"Name:{section.name}", (x, y+55),cv2.FONT_HERSHEY_DUPLEX, 1, COLOR, 1)
+                cv2.putText(image, f"Func:{section.function.name}", (x, y+85),cv2.FONT_HERSHEY_DUPLEX, 1, COLOR, 1)
+                cv2.putText(image, f"Limit:{section.limit}", (x, y+115),cv2.FONT_HERSHEY_DUPLEX, 1, COLOR, 1)
 
         return image
 
@@ -90,7 +89,7 @@ class Board(object):
 
         TICKET_MOVED_ILLEGALLY_COLOR = (0, 0, 255) # DONE If it's illegal DUE TO THE REGEX
         TICKET_REMOVED_COLOR = (0, 200, 225) # DONE If ticket is removed (doesn't matter if it's replaced or not) and not in final
-        TICKET_REMOVED_FROM_FINAL_COLOR = (100, 100, 200) # DONE Ticket removed from the board completely
+        TICKET_REMOVED_FROM_FINAL_COLOR = (70, 90, 70) # DONE Ticket removed from the board completely
         TICKET_NUMBER_INVALID_COLOR = (200, 0, 200) # DONE If the ticket's digits are not in the Data
         TICKET_DUPLICATE_COLOR = (0, 175, 255) # DONE
         TICKET_DUPLICATE_LINE_COLOR = (0, 175, 255) # DONE The line will have this color and so will the preexisting ticket if the ticket exists in another section currently - NEED TO SCAN that ticket's mask with current image - if it's there - the line color is this, 
@@ -210,7 +209,7 @@ class Board(object):
                         cv2.rectangle(image, (x - offset, y - offset), (x + w + offset, y + h + offset), TICKET_MOVED_ILLEGALLY_COLOR, 3)
                     elif error == Msg_Level.TICKET_NUMBER_INVALID:
                         cv2.rectangle(image, (x - offset, y - offset), (x + w + offset, y + h + offset), TICKET_NUMBER_INVALID_COLOR, 3)
-                    offset += 10
+                    offset += 15
 
 
             if section.over_section_limit():
@@ -231,10 +230,15 @@ class Board(object):
             if a1.ticket_num == None: 
                 cv2.rectangle(image, (tl1[0], tl1[1]), (br1[0], br1[1]), ASSIGNEE_NOT_ON_TICKET, 3)
             else: 
+                cv2.putText(image, f"{a1.name}", (int(tl1[0]), int(tl1[1]-10)),cv2.FONT_HERSHEY_DUPLEX, 1, ASSIGNEE_COLOR, 1)
+
                 cv2.rectangle(image, (tl1[0], tl1[1]), (br1[0], br1[1]), ASSIGNEE_COLOR, 3)
                 for a2 in assignees:
                     if a1.name == a2.name:
                         tl2, br2 = a2.bounding_rect
+
+                        cv2.putText(image, f"{a2.name}", (int(tl2[0]), int(tl2[1]-10)),cv2.FONT_HERSHEY_DUPLEX, 1, ASSIGNEE_COLOR, 1)
+
                         cv2.rectangle(image, (tl2[0], tl2[1]), (br2[0], br2[1]), ASSIGNEE_COLOR, 3)
 
                         x1 = int((tl1[0] + br1[0]) // 2 )

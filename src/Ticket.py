@@ -48,7 +48,7 @@ class Ticket(object):
         for assignee in self.assignee_names:
             if assignee not in scanned_assignees:
                 self.assignee_names.remove(assignee)
-                self.add_msg(f"INFO: ASSIGNEE - Ticket #{self.num} is NO LONGER assigned to \"{assignee}")
+                self.add_msg(f"INFO: ASSIGNEE - Ticket #{self.num} is NO LONGER assigned to \"{assignee}\"")
 
         for scanned_assignee in scanned_assignees:
             if scanned_assignee not in self.assignee_names:

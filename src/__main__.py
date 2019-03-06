@@ -35,7 +35,7 @@ def load_logging(loggingLevel):
     time = datetime.datetime.now().strftime("%H:%M:%S")
 
     logging.basicConfig(
-        format='%(asctime)s - [%(levelname)s] - %(message)s',
+        format='%(asctime)s - [%(levelname).4s] - %(message)s',
         datefmt="%m/%d/%Y %I:%M:%S",
         level=loggingLevel,
         handlers=[
@@ -144,6 +144,8 @@ def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
             
             assignees = detect_tickets.find_assignees_in_image(State)
             
+            detect_tickets.find_limits(State, Sections, Settings["Tickets"], Classifier, Data["Sections"])
+
             State.map_tickets_to_sections(added_tickets, removed_tickets, assignees, Sections, Data["Tickets"], Data["Sections"])
 
             save_view(Sections, State)

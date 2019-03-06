@@ -4,6 +4,7 @@ import imutils
 import random
 import utils
 import difflib
+from Section import Section
 from Ticket import Ticket, Assignee
 from imutils import perspective
 from Enums import Function
@@ -27,13 +28,38 @@ def difference_mask(image1, image2, ticket_settings):
     
     return dst
 
-def find_limits(state, sections, section_data):
-    curr_image = state.curr_image.copy()
-    background_image = state.background_image.copy()
+def find_limits(state, sections, ticket_settings, classifier, section_data):
+    c_i = state.curr_image.copy()
+    b_i = state.background_image.copy()
+
+    diff_mask = difference_mask(c_i, b_i, ticket_settings)
+
+    limit = ""
     for section_num, section in sections.items():
         if section.function == Function.LIMIT:
-            return
-    return 
+            mask = cv2.bitwise_and(section.mask, diff_mask)
+            _, contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contour = sorted(contours, key = cv2.contourArea, reverse = True)
+
+            if len(contour) > 0:
+                contour = contour[0]
+            else:
+                continue
+            x,y,w,h = cv2.boundingRect(contour)
+
+            if h > 40 and w > 40:
+                thresh_limit, colored_limit = cluster(c_i[y:y+h, x:x+w])
+                limit = find_numbers_in_mask(thresh_limit, colored_limit, classifier, ticket_settings["Digits"])
+
+                if limit != "" and limit != 0:
+                    prev_limit = section_data[section.name]
+                    section_data[section.name] = int(limit)
+                    Section.map_section_names(sections, section_data)
+                    if int(prev_limit) != int(limit):
+                        logging.info(f"SECTION - The \"{section.name}\" has changed from {prev_limit} to {limit} (ID:#{section_num})")
+                        state.board_sections = state.draw_section_rectangles(sections)
+
+    return sections, section_data
 
 def find_tickets(state, classifier, ticket_settings, ticket_data):
     prev_image = state.prev_image
