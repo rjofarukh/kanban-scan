@@ -17,18 +17,8 @@ class Section(object):
         self.tickets = {}
         self.limit = -1
 
-    def merge_section(self, section):
-        self.mask = cv2.bitwise_or(self.mask, section.mask)
-        self.size = np.sum(np.array(self.mask))
-        
-        for ticket_num, ticket in section.tickets:
-            self.add_ticket(ticket)
-
     def has_ticket(self, ticket):
         return ticket.num in self.tickets.keys()
-    
-    def get_tickets_in_section(self):
-        return [x.num for x in self.tickets]
 
     def add_ticket(self, ticket):
         if self.has_ticket(ticket):
@@ -90,7 +80,6 @@ Section Number {self.num}
                 limit_str = section_data[sec_name]
 
                 sections[section_num].set_function(Function.LIMIT)
-                # sections[section_num].set_name(limit_str)
 
                 sections[section_num].set_name(sec_name)
                 sections[section_num].set_limit(limit_str)
@@ -122,9 +111,11 @@ Section Number {self.num}
             tickets += section.tickets.keys()
 
         return tickets
-    def get_ticket(num, sections):
+
+    def get_ticket(ticket_num, sections):
         for section in sections.values():
-            if num in section.tickets.keys():
-                return section.tickets[num]
+            if ticket_num in section.tickets.keys():
+                return section.tickets[ticket_num]
+        return None
 
 

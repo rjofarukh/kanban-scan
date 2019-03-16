@@ -14,6 +14,14 @@ class Board(object):
 
         self.curr_index = 0
 
+        self.classifier = None
+        self.api = None
+        self.data = None
+
+        self.ticket_collection = None
+        self.section_collection = None
+
+
         self.curr_image = None
         self.prev_image = None
         self.background_image = None
@@ -76,30 +84,27 @@ class Board(object):
         return image
 
     def map_tickets_to_sections(self, added_tickets, removed_tickets, assignees, sections, ticket_data, section_data):
-        SECTION_LIMIT_REACHED_COLOR = (45, 195, 255)# DONE color of the bounding rectangle for that section
-        TICKET_MOVED_LINE_COLOR = (50, 255, 50) # DONE color of the line connecting previous and new location - if it's both added and removed in the current iteration
-        TICKET_MOVED_COLOR = (30, 255, 30) # DONE The movement is valid - whether it moved now or was removed in an old state and plced now - VALIDATED BY REGEX - If it exists in another section, I scan the old ticket mask and it's not there! If it is there - will need TICKET_DUPLICATE_LINE_COLOR 
-
-        ASSIGNEE_MULTIPLE_COLOR = (0, 160, 225) # DONE Color around the border of ticket with multiple assignees
-        ASSIGNEE_DUPLICATE_LINE_COLOR = (0, 175, 255) # DONE Color connecting duplicate QR codes (asignees) - needs to be done after all the QR codes are assigned to ticket objects
+        ASSIGNEE_MULTIPLE_COLOR = (0, 160, 225) 
+        ASSIGNEE_DUPLICATE_LINE_COLOR = (0, 175, 255)
         ASSIGNEE_NOT_ON_TICKET = (0, 0, 255)
         ASSIGNEE_COLOR = (230, 90, 10)
-        
-        SECTION_LIMIT_SURPASSED_COLOR = (100, 100, 255)# DONE color of the bounding rectangle for that section if the limit is surpassed
 
-        TICKET_MOVED_ILLEGALLY_COLOR = (0, 0, 255) # DONE If it's illegal DUE TO THE REGEX
-        TICKET_REMOVED_COLOR = (0, 200, 225) # DONE If ticket is removed (doesn't matter if it's replaced or not) and not in final
-        TICKET_REMOVED_FROM_FINAL_COLOR = (70, 90, 70) # DONE Ticket removed from the board completely
-        TICKET_NUMBER_INVALID_COLOR = (200, 0, 200) # DONE If the ticket's digits are not in the Data
-        TICKET_DUPLICATE_COLOR = (0, 175, 255) # DONE
-        TICKET_DUPLICATE_LINE_COLOR = (0, 175, 255) # DONE The line will have this color and so will the preexisting ticket if the ticket exists in another section currently - NEED TO SCAN that ticket's mask with current image - if it's there - the line color is this, 
+        TICKET_MOVED_LINE_COLOR = (50, 255, 50)
+        TICKET_MOVED_COLOR = (30, 255, 30)
+        TICKET_MOVED_ILLEGALLY_COLOR = (0, 0, 255)
+        TICKET_REMOVED_COLOR = (0, 200, 225)
+        TICKET_REMOVED_FROM_FINAL_COLOR = (70, 90, 70) 
+        TICKET_DUPLICATE_COLOR = (0, 175, 255)
+        TICKET_DUPLICATE_LINE_COLOR = (0, 175, 255)
+        TICKET_NUMBER_INVALID_COLOR = (200, 0, 200)
+
+        SECTION_LIMIT_REACHED_COLOR = (45, 195, 255)
+        SECTION_LIMIT_SURPASSED_COLOR = (100, 100, 255)
+
 
         image = self.curr_image.copy()
         workflow = re.compile(section_data["regex"])
         moved_ticket_numbers = set(added_tickets.keys()) & set(removed_tickets.keys())
-
-        # If the area for any of them is 80% intersected with an asignee tag, remove it from moved/removed  tickets
-
 
         for ticket_num, ticket in removed_tickets.items():
             x,y,w,h = ticket.bounding_rect
@@ -121,9 +126,6 @@ class Board(object):
                     logging.warning(f"TICKET - Ticket #{ticket_num} REMOVED from section \"{sections[previous_section].name}\" (ID:#{previous_section}, {certainty}%)")
 
             ticket.prev_section = sections[previous_section].name
-
-            # ADD OPAQUE MASK OF THE REMOVED TICKET
-
 
         for ticket_num, ticket in added_tickets.items():
             x,y,w,h = ticket.bounding_rect
@@ -252,39 +254,3 @@ class Board(object):
         
         self.board_extracted = image
         self.colored_grid = utils.image_grid(self.curr_image, self.prev_image, self.board_extracted, self.board_sections)
-
-
-class SmartphonePhoto(object):
-    def __init__(self, photoFile):
-        self.photo = photoFile
-
-        with open(photoFile) as inFile:
-            self.filename = inFile.readline()
-            inFile.close()
-        groups = re.match(r'(.*)IMG-(?P<year>....)-(?P<month>.*)-(?P<day>.*) (?P<hours>.*)h(?P<minutes>.*)m(?P<seconds>.*)s_(?P<battery>.*)%.jpg', self.filename)
-        
-        try:
-            self.year = int(groups.group("year"))
-            self.month = int(groups.group("month"))
-            self.day = int(groups.group("day"))
-
-            self.hours = int(groups.group("hours"))
-            self.minutes = int(groups.group("minutes"))
-            self.seconds = int(groups.group("seconds"))
-
-            self.battery = int(groups.group("battery"))
-        
-        except (AttributeError, ValueError):
-            logger.critical("The format of the screenshot name file is incorrect. Please reconfigure.")
-
-    def __str__(self):
-        return  f"Year:    {self.year}\n" \
-                f"Month:   {self.month}\n" \
-                f"Day:     {self.day}\n" \
-                f"Hours:   {self.hours}\n" \
-                f"Minutes: {self.minutes}\n" \
-                f"Seconds: {self.seconds}\n" \
-                f"Battery: {self.battery}"
-
-
-        

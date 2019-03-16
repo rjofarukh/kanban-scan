@@ -28,7 +28,7 @@ def difference_mask(image1, image2, ticket_settings):
     
     return dst
 
-def find_limits(state, sections, ticket_settings, classifier, section_data):
+def find_limits(state, sections, ticket_settings, section_data):
     c_i = state.curr_image.copy()
     b_i = state.background_image.copy()
 
@@ -49,7 +49,7 @@ def find_limits(state, sections, ticket_settings, classifier, section_data):
 
             if h > 40 and w > 40:
                 thresh_limit, colored_limit = cluster(c_i[y:y+h, x:x+w])
-                limit = find_numbers_in_mask(thresh_limit, colored_limit, classifier, ticket_settings["Digits"])
+                limit = find_numbers_in_mask(thresh_limit, colored_limit, state.classifier, ticket_settings["Digits"])
 
                 if limit != "" and limit != 0:
                     prev_limit = section_data[section.name]
@@ -61,7 +61,7 @@ def find_limits(state, sections, ticket_settings, classifier, section_data):
 
     return sections, section_data
 
-def find_tickets(state, classifier, ticket_settings, ticket_data):
+def find_tickets(state, ticket_settings, ticket_data):
     prev_image = state.prev_image
     curr_image = state.curr_image
     background_image = state.background_image
@@ -77,9 +77,9 @@ def find_tickets(state, classifier, ticket_settings, ticket_data):
     threshold_grid = utils.image_grid(curr_back_diff, prev_back_diff, added_ticket_mask, removed_ticket_mask)
     state.set_grids(colored_grid, threshold_grid)
 
-    added_tickets = changed_tickets(curr_image, added_ticket_mask, classifier, ticket_settings, ticket_data)
+    added_tickets = changed_tickets(curr_image, added_ticket_mask, state.classifier, ticket_settings, ticket_data)
 
-    removed_tickets = changed_tickets(prev_image, removed_ticket_mask, classifier, ticket_settings, ticket_data)
+    removed_tickets = changed_tickets(prev_image, removed_ticket_mask, state.classifier, ticket_settings, ticket_data)
 
     return added_tickets, removed_tickets
 
@@ -152,8 +152,6 @@ def cluster(image):
     return mask, res2
 
 def normalize(image):
-
-    #return image
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
     blurred = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
@@ -168,7 +166,7 @@ def deskew(image, SZ=20):
     image = cv2.warpAffine(image, M, (SZ, SZ))
     return image
 
-def find_assignees_in_image(state):
+def find_assignees(state):
     assignees = []
 
     image = state.curr_image

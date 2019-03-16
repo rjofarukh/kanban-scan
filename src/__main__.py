@@ -1,5 +1,5 @@
-import detect_board
-import detect_tickets
+from detect_board import find_board, find_and_transform_board, transform_corners
+from detect_tickets import find_assignees, find_limits, find_tickets
 import argparse
 import cv2
 import utils
@@ -31,13 +31,13 @@ def load_parsers():
     args = parser.parse_args()
     return args
 
-def load_logging(loggingLevel):
+def load_logging(logging_level):
     time = datetime.datetime.now().strftime("%H:%M:%S")
 
     logging.basicConfig(
         format='%(asctime)s - [%(levelname).4s] - %(message)s',
         datefmt="%m/%d/%Y %I:%M:%S",
-        level=loggingLevel,
+        level=logging_level,
         handlers=[
             logging.FileHandler("../logs/%s.log" % time),
             logging.StreamHandler(sys.stdout)
@@ -53,36 +53,35 @@ def load_classifiers(recognition_alg):
         svm = joblib.load(svm_file)
         return svm
 
-def load_settings(settingsFile, settingsID):
-    logging.info(f"Loading settings #{settingsID} from \"{settingsFile}\"")
-    with open(settingsFile) as infile:
+def load_settings(settings_file, settings_id):
+    logging.info(f"Loading settings #{settings_id} from \"{settings_file}\"")
+    with open(settings_file) as infile:
         settings = json.load(infile)
-    # utils.setup_thresholds(settings[settingsID]["General"]["thresholds_file"])
-    return settings[settingsID]
+    return settings[settings_id]
 
-def load_thresholds(settingsFile):
-    logging.info(f"""Loading thresholds from \"{settingsFile["General"]["thresholds_file"]}\"""")
-    utils.setup_thresholds(settingsFile["General"]["thresholds_file"])
+def load_thresholds(settings_file):
+    logging.info(f"""Loading thresholds from \"{settings_file["General"]["thresholds_file"]}\"""")
+    utils.setup_thresholds(settings_file["General"]["thresholds_file"])
 
-def save_pickle_files(objFileNames, *objects):
-    if len(objects) != len(objFileNames):
+def save_pickle_files(object_file_names, *objects):
+    if len(objects) != len(object_file_names):
         logging.error("Number of names supplied for pickling is different "\
                       "from the number of labels for them!")
     else:
         logging.info("Saving pickle files..")
         for i in range(len(objects)):
-            logging.info(f"  ../pkl/{objFileNames[i]}.pkl")
-            with open("../pkl/%s.pkl" % objFileNames[i], "wb") as outFile:
+            logging.info(f"  ../pkl/{object_file_names[i]}.pkl")
+            with open("../pkl/%s.pkl" % object_file_names[i], "wb") as outFile:
                 pickle.dump(objects[i], outFile)
         logging.info("Saved pickle files!")
     
-def load_from_pickle_files(objFileNames):
+def load_from_pickle_files(object_file_names):
     objects = []
-    if len(objFileNames) == len(os.listdir("../pkl")):
+    if len(object_file_names) <= len(os.listdir("../pkl")):
         logging.info("Loading pickle files..")
-        for i in range(len(objFileNames)):
-            logging.info(f"  ../pkl/{objFileNames[i]}.pkl")
-            with open("../pkl/%s.pkl" % objFileNames[i], "rb") as inFile:
+        for i in range(len(object_file_names)):
+            logging.info(f"  ../pkl/{object_file_names[i]}.pkl")
+            with open(f"../pkl/{object_file_names[i]}.pkl", "rb") as inFile:
                 objects.append(pickle.load(inFile))
         logging.info("Loaded pickle files!")
     else:
@@ -90,79 +89,79 @@ def load_from_pickle_files(objFileNames):
                       "the number of objects supplied!")
     return objects
 
-def load_tic_sec_info(settingsID):
+def load_tic_sec_info(settings_id):
     data = {}
-    logging.info(f"Loading ticket and section JSON files (DEMO #{settingsID})")
+    logging.info(f"Loading ticket and section JSON files (DEMO #{settings_id})")
     with open("../json/Tickets.json") as tickets:
         tickets = json.load(tickets)
     with open("../json/Sections.json") as sections:
         sections = json.load(sections)
 
-    data["Tickets"] = tickets[settingsID]
-    data["Sections"] = sections[settingsID]
+    data["Tickets"] = tickets[settings_id]
+    data["Sections"] = sections[settings_id]
     return data
 
     
 def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
     load_logging(logging_level)
-    object_file_names = ["stage", "settings", "classifier", "sections", "state", "data"]
+    object_file_names = ["settings", "sections", "board"]
 
-    Curr_Stage = Stage.INIT
-    Settings = []
-    Classifier = None
-    Sections = {}
-    State = None
-    Data = []
+    stage = None
+    settings = []
+    sections = {}
+    board = None
 
     if load_pkls:
-        Curr_Stage, Settings, Classifier, Sections, State, Data = load_from_pickle_files(object_file_names)
+        stage = Stage.MAIN
+        settings, sections, board = load_from_pickle_files(object_file_names)
     else:
-        Settings = load_settings("../json/settings.json", demo_id)
-        Classifier = load_classifiers(Settings["Tickets"]["Digits"]["recognition_alg"])
-        State = Board(photo_folder)
-        Data = load_tic_sec_info(demo_id)
+        stage = Stage.INIT
+        settings = load_settings("../json/settings.json", demo_id)
+        board = Board(photo_folder)
+        board.classifier = load_classifiers(settings["Tickets"]["Digits"]["recognition_alg"])
+        board.data = load_tic_sec_info(demo_id)
     
-    load_thresholds(Settings)
-    photo = State.next_photo()
+    load_thresholds(settings)
+    photo = board.next_photo()
 
     while photo is not None:
-        if Curr_Stage == Stage.INIT and detect_board.find_board(photo, Settings["Board"]):
-            background_image, Sections, points = detect_board.find_and_transform_board(photo, Sections, Settings["Board"])
+        if stage == Stage.INIT and find_board(photo, settings["Board"]):
+            background_image, sections, points = find_and_transform_board(photo, sections, settings["Board"])
 
-            State.set_background_image(background_image)
-            State.set_points(points)
+            board.set_background_image(background_image)
+            board.set_points(points)
 
-            State.unmapped_sections = State.draw_section_rectangles(Sections)
-            Sections = Section.map_section_names(Sections, Data["Sections"])
-            State.board_sections = State.draw_section_rectangles(Sections)
+            board.unmapped_sections = board.draw_section_rectangles(sections)
+            sections = Section.map_section_names(sections, board.data["Sections"])
+            board.board_sections = board.draw_section_rectangles(sections)
 
-            Curr_Stage = Stage.MAIN
+            stage = Stage.MAIN
 
-        elif Curr_Stage == Stage.MAIN and detect_board.find_board(photo, Settings["Board"]):
-            State.set_curr_image(detect_board.transform_corners(photo, State.points))
-            added_tickets, removed_tickets = detect_tickets.find_tickets(State, Classifier, Settings["Tickets"], Data["Tickets"])
+        elif stage == Stage.MAIN and find_board(photo, settings["Board"]):
+            board.set_curr_image(transform_corners(photo, board.points))
+            added_tickets, removed_tickets = find_tickets(board, settings["Tickets"], board.data["Tickets"])
             
-            assignees = detect_tickets.find_assignees_in_image(State)
+            assignees = find_assignees(board)
             
-            detect_tickets.find_limits(State, Sections, Settings["Tickets"], Classifier, Data["Sections"])
+            find_limits(board, sections, settings["Tickets"], board.data["Sections"])
 
-            State.map_tickets_to_sections(added_tickets, removed_tickets, assignees, Sections, Data["Tickets"], Data["Sections"])
+            board.map_tickets_to_sections(added_tickets, removed_tickets, assignees, sections, board.data["Tickets"], board.data["Sections"])
 
-            save_view(Sections, State)
-            interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data, demo_id)
+            save_view(sections, board)
+            interface(object_file_names, settings, sections, board, demo_id)
             
 
-        photo = State.next_photo()
+        photo = board.next_photo()
     
     sys.exit()
         
-def save_view(sections, State):
+def save_view(sections, board):
     from terminaltables import AsciiTable
 
-    cv2.imwrite("../live_view/changes_grid.jpg", State.colored_grid)
-    cv2.imwrite("../live_view/thresholds_grid.jpg", State.threshold_grid)
-    cv2.imwrite("../live_view/mapped_sections.jpg", State.board_sections)
-    cv2.imwrite("../live_view/unmapped_sections.jpg", State.unmapped_sections)
+    cv2.imwrite("../live_view/changes_grid.jpg", board.colored_grid)
+    cv2.imwrite("../live_view/thresholds_grid.jpg", board.threshold_grid)
+    cv2.imwrite("../live_view/mapped_sections.jpg", board.board_sections)
+    cv2.imwrite("../live_view/unmapped_sections.jpg", board.unmapped_sections)
 
 
     table_data = [["ID", "Function", "Name", "Limit", "Tickets"]]
@@ -191,7 +190,7 @@ def save_view(sections, State):
 
     with open("../live_view/board.txt", "w+") as b:
         b.write(table.table)
-        b.write(f"\n\nDemo folder: {State.dir_name}\n")
+        b.write(f"\n\nDemo folder: {board.dir_name}\n")
         b.write("Saved files:\n")
         b.write("  ../live_view/changes_grid.jpg\n")
         b.write("  ../live_view/thresholds_grid.jpg\n")
@@ -199,45 +198,34 @@ def save_view(sections, State):
         b.write("  ../live_view/unmapped_sections.jpg\n")
         
 
-def interface(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data, demo_id):
-    # print("")
-    # print("  View:")
-    # print("    [t]ickets")
-    # print("    [s]ections")
-    # print("  [q]uit and save pickles")
-    # print("  (ENTER) continue")
+def interface(object_file_names, settings, sections, board, demo_id):
 
     while True:
         cmd = input("\n[t][s][q][enter]=> ")
 
         if cmd == "t":
-            tickets = Section.tickets_keys_on_board(Sections)
+            tickets = Section.tickets_keys_on_board(sections)
             print(f"Tickets: {tickets}")
             if len(tickets) > 0:
                 cmd = input("Choose a ticket=> ")
                 while cmd not in tickets:
                     cmd = input("Not a valid number. Choose again=> ")
-                print(Section.get_ticket(cmd, Sections))
+                print(Section.get_ticket(cmd, sections))
         elif cmd == "s":
-            print(f"Sections: {Sections.keys()}")
-            if len(Sessions.keys()) > 0:
+            print(f"Sections: {sections.keys()}")
+            if len(sections.keys()) > 0:
                 cmd = input("Choose a section=> ")
-                while cmd not in Sections.keys():
+                while cmd not in sections.keys():
                     cmd = input("Not a valid number. Choose again=> ")
-                print(Sections[cmd])
+                print(sections[cmd])
         elif cmd == "q":
-            save_pickle_files(object_file_names, Curr_Stage, Settings, Classifier, Sections, State, Data)
+            save_pickle_files(object_file_names, settings, sections, board)
             logging.warning("Exiting program!")
             sys.exit()
         else:
             return
         
         cmd = ""
-
-
-###############################################
-
-
 
 def main():
     args = load_parsers()

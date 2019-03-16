@@ -1,7 +1,10 @@
 {
     "1" : {
         "General" : {
-            "thresholds_file" : "../json/thresholds.json"
+            "thresholds_file" : "../json/thresholds.json",
+            "ticket_file" : "../json/Tickets.json",
+            "section_file" : "../json/Sections.json"
+
         },
 
         "Board" : {
