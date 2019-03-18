@@ -1,5 +1,6 @@
 src/*.jpg
-dp/*
+db
+db/*
 src/.vscode
 logs/*
 pkl/*
