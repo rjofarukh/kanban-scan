@@ -1,5 +1,6 @@
 from detect_board import find_board, find_and_transform_board, transform_corners
 from detect_tickets import find_assignees, find_limits, find_tickets
+from db_controller import Database
 import argparse
 import cv2
 import utils
@@ -109,17 +110,24 @@ def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
     stage = None
     settings = []
     sections = {}
+    database = Database()
     board = None
 
     if load_pkls:
         stage = Stage.MAIN
         settings, sections, board = load_from_pickle_files(object_file_names)
+        board.ticket_collection, board.section_collection = load_collections()
     else:
         stage = Stage.INIT
         settings = load_settings("../json/settings.json", demo_id)
         board = Board(photo_folder)
         board.classifier = load_classifiers(settings["Tickets"]["Digits"]["recognition_alg"])
-        board.data = load_tic_sec_info(demo_id)
+
+        database.reset()
+        database.init_ticket_collection(settings["General"]["ticket_file"], demo_id)
+        database.init_section_collection(settings["General"]["section_file"], demo_id)
+        board.data = database.data
+
     
     load_thresholds(settings)
     photo = board.next_photo()
@@ -145,7 +153,7 @@ def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
             
             find_limits(board, sections, settings["Tickets"], board.data["Sections"])
 
-            board.map_tickets_to_sections(added_tickets, removed_tickets, assignees, sections, board.data["Tickets"], board.data["Sections"])
+            board.map_tickets_to_sections(added_tickets, removed_tickets, assignees, sections, database)
 
             save_view(sections, board)
             interface(object_file_names, settings, sections, board, demo_id)
@@ -219,6 +227,8 @@ def interface(object_file_names, settings, sections, board, demo_id):
                     cmd = input("Not a valid number. Choose again=> ")
                 print(sections[cmd])
         elif cmd == "q":
+            board.ticket_collection = None
+            board.section_collection = None
             save_pickle_files(object_file_names, settings, sections, board)
             logging.warning("Exiting program!")
             sys.exit()

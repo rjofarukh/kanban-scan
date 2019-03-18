@@ -5,7 +5,7 @@ import logging
 import utils
 from Ticket import Assignee
 from Enums import Function, Msg_Level
-from PIL import ImageFont, ImageDraw, Image  
+from PIL import ImageFont, ImageDraw, Image 
 
 class Board(object):
     def __init__(self, dir_name):
@@ -15,12 +15,7 @@ class Board(object):
         self.curr_index = 0
 
         self.classifier = None
-        self.api = None
         self.data = None
-
-        self.ticket_collection = None
-        self.section_collection = None
-
 
         self.curr_image = None
         self.prev_image = None
@@ -83,7 +78,7 @@ class Board(object):
 
         return image
 
-    def map_tickets_to_sections(self, added_tickets, removed_tickets, assignees, sections, ticket_data, section_data):
+    def map_tickets_to_sections(self, added_tickets, removed_tickets, assignees, sections, database):
         ASSIGNEE_MULTIPLE_COLOR = (0, 160, 225) 
         ASSIGNEE_DUPLICATE_LINE_COLOR = (0, 175, 255)
         ASSIGNEE_NOT_ON_TICKET = (0, 0, 255)
@@ -103,7 +98,7 @@ class Board(object):
 
 
         image = self.curr_image.copy()
-        workflow = re.compile(section_data["regex"])
+        workflow = re.compile(self.data["Sections"]["regex"])
         moved_ticket_numbers = set(added_tickets.keys()) & set(removed_tickets.keys())
 
         for ticket_num, ticket in removed_tickets.items():
@@ -116,14 +111,16 @@ class Board(object):
                 continue
 
             if sections[previous_section].function == Function.FINAL and ticket_num not in added_tickets:
-                if ticket_num in ticket_data.keys():
-                    ticket_data[ticket_num]["history"] = ""
+                if ticket_num in self.data["Tickets"].keys():
+                    self.data["Tickets"][ticket_num]["history"] = ""
                 cv2.rectangle(image, (x, y), (x + w, y + h), TICKET_REMOVED_FROM_FINAL_COLOR, 3)
                 logging.info(f"TICKET - Ticket #{ticket.num} has been SUCCESSFULLY REMOVED from section \"{sections[previous_section].name}\" (ID:#{previous_section}, {certainty}%)")
             else:
                 cv2.rectangle(image, (x, y), (x + w, y + h), TICKET_REMOVED_COLOR, 3)
                 if ticket_num not in added_tickets:
                     logging.warning(f"TICKET - Ticket #{ticket_num} REMOVED from section \"{sections[previous_section].name}\" (ID:#{previous_section}, {certainty}%)")
+
+            database.update_ticket(ticket, self.data["Tickets"], "database")
 
             ticket.prev_section = sections[previous_section].name
 
@@ -146,10 +143,10 @@ class Board(object):
                 sections[section_num].remove_ticket(ticket)
 
             section_num, certainty = ticket.belongs_to(sections)
-            if ticket_num in ticket_data.keys():
+            if ticket_num in self.data["Tickets"].keys():
                 if not (ticket_num in removed_tickets and removed_tickets[ticket_num].prev_section == section_num):
-                    ticket_history = ticket_data[ticket_num]["history"] + str(sections[section_num].name) + "-"
-                    ticket.desc = ticket_data[ticket_num]["description"]
+                    ticket_history = self.data["Tickets"][ticket_num]["history"] + str(sections[section_num].name) + "-"
+                    ticket.desc = self.data["Tickets"][ticket_num]["description"]
             else: 
                 ticket.add_error(Msg_Level.TICKET_NUMBER_INVALID, f"ERROR: TICKET - Ticket #{ticket_num} does not exist in the database!")
                 
@@ -159,7 +156,7 @@ class Board(object):
 
 
             if workflow.fullmatch(ticket_history) is not None:
-                ticket_data[ticket_num]["history"] = ticket_history
+                self.data["Tickets"][ticket_num]["history"] = ticket_history
                 ticket.section_history = ticket_history
                 if ticket_num in removed_tickets:
                     x2,y2,w2,h2 = removed_tickets[ticket_num].bounding_rect
@@ -194,12 +191,15 @@ class Board(object):
 
 
         for section_num, section in sections.items():
+            
+            database.update_section(section)
             for ticket_num, ticket in section.tickets.items():
                 ticket_assignees = Assignee.belonging_to_ticket_and_section(assignees, ticket_num, section_num)
 
                 ticket.set_assignee(ticket_assignees)
-
                 ticket.print_msgs()
+
+                database.update_ticket(ticket, self.data["Tickets"], section.name)
 
                 x,y,w,h = ticket.bounding_rect
                 offset = 0
