@@ -5,7 +5,6 @@ import logging
 import utils
 from Ticket import Assignee
 from Enums import Function, Msg_Level
-from PIL import ImageFont, ImageDraw, Image 
 
 class Board(object):
     def __init__(self, dir_name):
@@ -113,14 +112,14 @@ class Board(object):
             if sections[previous_section].function == Function.FINAL and ticket_num not in added_tickets:
                 if ticket_num in self.data["Tickets"].keys():
                     self.data["Tickets"][ticket_num]["history"] = ""
+                    database.update_ticket(ticket, self.data["Tickets"], "database")
+
                 cv2.rectangle(image, (x, y), (x + w, y + h), TICKET_REMOVED_FROM_FINAL_COLOR, 3)
                 logging.info(f"TICKET - Ticket #{ticket.num} has been SUCCESSFULLY REMOVED from section \"{sections[previous_section].name}\" (ID:#{previous_section}, {certainty}%)")
             else:
                 cv2.rectangle(image, (x, y), (x + w, y + h), TICKET_REMOVED_COLOR, 3)
                 if ticket_num not in added_tickets:
                     logging.warning(f"TICKET - Ticket #{ticket_num} REMOVED from section \"{sections[previous_section].name}\" (ID:#{previous_section}, {certainty}%)")
-
-            database.update_ticket(ticket, self.data["Tickets"], "database")
 
             ticket.prev_section = sections[previous_section].name
 
@@ -151,8 +150,6 @@ class Board(object):
                 ticket.add_error(Msg_Level.TICKET_NUMBER_INVALID, f"ERROR: TICKET - Ticket #{ticket_num} does not exist in the database!")
                 
                 ticket_history = ""
-                # ticket_history = sections[section_num].name + "-"
-                # ticket_data.update({ticket_num : {"description" : "", "history" : ""}})
 
 
             if workflow.fullmatch(ticket_history) is not None:

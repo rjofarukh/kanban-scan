@@ -89,19 +89,6 @@ def load_from_pickle_files(object_file_names):
         logging.error("Number of objects in directory is different from "\
                       "the number of objects supplied!")
     return objects
-
-def load_tic_sec_info(settings_id):
-    data = {}
-    logging.info(f"Loading ticket and section JSON files (DEMO #{settings_id})")
-    with open("../json/Tickets.json") as tickets:
-        tickets = json.load(tickets)
-    with open("../json/Sections.json") as sections:
-        sections = json.load(sections)
-
-    data["Tickets"] = tickets[settings_id]
-    data["Sections"] = sections[settings_id]
-    return data
-
     
 def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
     load_logging(logging_level)
@@ -110,19 +97,20 @@ def demo(logging_level, photo_folder="", demo_id="", load_pkls=False):
     stage = None
     settings = []
     sections = {}
-    database = Database()
+    database = None
     board = None
 
     if load_pkls:
         stage = Stage.MAIN
         settings, sections, board = load_from_pickle_files(object_file_names)
-        board.ticket_collection, board.section_collection = load_collections()
+        database = Database(settings["General"]["token"])
     else:
         stage = Stage.INIT
         settings = load_settings("../json/settings.json", demo_id)
         board = Board(photo_folder)
         board.classifier = load_classifiers(settings["Tickets"]["Digits"]["recognition_alg"])
 
+        database = Database(settings["General"]["token"])
         database.reset()
         database.init_ticket_collection(settings["General"]["ticket_file"], demo_id)
         database.init_section_collection(settings["General"]["section_file"], demo_id)

@@ -4,8 +4,8 @@ import logging
 import time
 
 
-# Creates a project if it doesn't exist
 def create_projects(api, section_data):
+    logging.info("API - Loading projects into Todoist")
     api.sync()
     for section_num, section_name in section_data.items():
         if not "limit" in section_name and not "none" in section_name:
@@ -16,10 +16,9 @@ def create_projects(api, section_data):
     api.commit()
 
     for section in api.state["projects"]:
-        if  section["name"] != "Inbox":
-            #if "is_deleted" not in section.keys() or not section["is_deleted"]:
-                section_num = str(section["item_order"])
-                section_data[section_num] = section["id"]
+        if section["name"] != "Inbox":
+            section_num = str(section["item_order"])
+            section_data[section_num] = section["id"]
 
     return section_data
 
@@ -45,6 +44,7 @@ def update_project(api, section, section_rest_id):
     api.commit()
 
 def create_items(api, ticket_data, project_id):
+    logging.info("API - Loading tickets into Todoist")
     for ticket_num, ticket in ticket_data.items():
         api.items.add(f"""{ticket_num} - {ticket["description"]}""", project_id)
 
@@ -52,9 +52,8 @@ def create_items(api, ticket_data, project_id):
 
     api.sync()
     for ticket in api.state["items"]:
-        #if "is_deleted" not in ticket.keys() or not ticket["is_deleted"]:
-            ticket_num = ticket["content"].split("-")[0].strip()
-            ticket_data[ticket_num]["rest_id"] = ticket["id"]
+        ticket_num = ticket["content"].split("-")[0].strip()
+        ticket_data[ticket_num]["rest_id"] = ticket["id"]
     
     return ticket_data
 
@@ -71,10 +70,9 @@ def update_item(api, ticket, ticket_rest_id, section_rest_id):
     api_ticket.update(content=f"""{ticket.num} - {ticket.desc} {ticket.assignee_names}""", priority=priority)
     api_ticket.move(section_rest_id)
 
-
-def load_api_controller():
-    api = TodoistAPI("c0c50d155fed604c87a6a3fec61937a0d62978be")
+def load_api_controller(token):
+    logging.info("API - Loading Todoist API")
+    api = TodoistAPI(token)
     api.sync()
 
     return api
-

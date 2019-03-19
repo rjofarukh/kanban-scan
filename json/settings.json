@@ -3,8 +3,8 @@
         "General" : {
             "thresholds_file" : "../json/thresholds.json",
             "ticket_file" : "../json/Tickets.json",
-            "section_file" : "../json/Sections.json"
-
+            "section_file" : "../json/Sections.json",
+            "token" : "c0c50d155fed604c87a6a3fec61937a0d62978be"
         },
 
         "Board" : {

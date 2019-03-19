@@ -6,8 +6,8 @@ import logging
 from copy import deepcopy
 
 class Database(object):
-    def __init__(self):
-        self.api = load_api_controller()
+    def __init__(self, token):
+        self.api = load_api_controller(token)
         self.api.sync()
 
         self.client = MongoClient("mongodb://localhost:27017/")
@@ -22,29 +22,28 @@ class Database(object):
 
         commands = 0
         for ticket in self.api.state["items"]:
-            #if "is_deleted" not in ticket.keys() or not ticket["is_deleted"]:
-                try:
-                    ticket.delete()
-                    commands += 1
-                    if commands == 40:
-                        self.api.commit()
-                        commands = 0
-                except:
-                    logging.warning("Sync error with the Todoist API")
+            try:
+                ticket.delete()
+                commands += 1
+                if commands == 40:
+                    self.api.commit()
+                    commands = 0
+            except:
+                logging.warning("Sync error with the Todoist API")
 
         commands = 0
         for section in self.api.state["projects"]:
-            #if "is_deleted" not in section.keys() or not section["is_deleted"]:
-                try:
-                    section.delete()
-                    commands += 1
-                    if commands == 40:
-                        self.api.commit()
-                        commands = 0
-                except:
-                    logging.warning("Sync error with the Todoist API")
+            try:
+                section.delete()
+                commands += 1
+                if commands == 40:
+                    self.api.commit()
+                    commands = 0
+            except:
+                logging.warning("Sync error with the Todoist API")
 
         try: 
+            logging.info("API - Removing tickets and sections from Todoist")
             self.api.commit()
         except:
             logging.warning("Sync error with the Todoist API")
@@ -74,10 +73,8 @@ class Database(object):
                     "errors" : []
                 })
 
-    # The update will happend at the end of the removed ticket sequence in Board.py
-    # or after the the tickets have been assigned  (near the ned)
     def update_ticket(self, ticket, ticket_data, section_name):
-
+        self.api.sync()
         section_rest_id = self.section_collection.find_one({"name" : section_name})["rest_id"]
     
         if ticket.num in ticket_data.keys():
@@ -109,26 +106,19 @@ class Database(object):
             self.data["Sections"] = deepcopy(section_data)
 
             rest_mapping = create_projects(self.api, section_data["map_string"])
-            logging.debug(rest_mapping)
+
             for section_num, section_name in self.data["Sections"]["map_string"].items():
                 self.section_collection.insert_one({
                     "_id" : section_num,
                     "rest_id" : rest_mapping[section_num],
                     "name" : section_name
                 })
-        
-    # will only change the API
-    # Will change the color based on the ticket limit
+
+
     def update_section(self, section):
         if section.function in (Function.TICKET, Function.FINAL):
             section_rest_id = self.section_collection.find_one({"name" : section.name})["rest_id"]
             update_project(self.api, section, section_rest_id)
             self.api.commit()
 
-
-
-if __name__ == "__main__":
-    database = Database()
-    database.init_ticket_collection("../json/Tickets.json", "1")
-    database.init_section_collection("../json/Sections.json", "1")
 

@@ -1,5 +1,35 @@
 #!/bin/bash
 
+##################################################################
+#
+# To use :
+#   python3 -m pip install --user virtualenv
+#   python3 -m virtualenv $environment_name
+#   source $environment_name/bin/activate
+#   pip install -r requirements.txt
+#
+# After you're done : 
+#   deactivate    # deactivates the environment
+#
+
+# Make sure you have all the requirements from requirements.txt
+# 
+# Most important ones are: 
+#   opencv, tensorflow, keras, scikit-learn, scikit-image, todoist-python, pymongo,
+#   pyzbar, terminaltables, matplotlib
+#
+#
+
+# Firstly, run db_start.sh to launch the actual database
+# Optionally, then run watch.sh to see the current state
+# of the board along with any pictures you like 
+# (hold CMD + picture_path to open the picture in preview)
+# 
+# Then launch ./run -d to run the full demo, -t is just for testing
+# and prints logging.debug
+#
+# 
+#
 : > ../live_view/board.txt 
 
 rm ../data/basic/.DS_Store &>/dev/null
@@ -7,11 +37,7 @@ rm ../data/correcting_movement/.DS_Store &>/dev/null
 rm ../data/assignees/.DS_Store &>/dev/null
 FOLDER=""
 
-# run the mongodb server
 
-#mongod --dbpath ~/projects/kanban-scan/db &
-
-# command to remove all the logs except for the last 10
 
 while getopts "f:cpt:rd" opt; do
   case ${opt} in
